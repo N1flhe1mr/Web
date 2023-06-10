@@ -12,6 +12,7 @@ build/
 .sts4-cache
 
 ### IntelliJ IDEA ###
+target
 .idea
 *.iws
 *.iml
