@@ -30,7 +30,7 @@ public class Server {
         }
     }
 
-    private synchronized void handleConnection(Socket clientSocket) {
+    private void handleConnection(Socket clientSocket) {
         try (
                 final var in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 final var out = new BufferedOutputStream(clientSocket.getOutputStream());
