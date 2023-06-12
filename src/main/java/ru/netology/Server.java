@@ -28,14 +28,16 @@ public class Server {
         try (final var serverSocket = new ServerSocket(port)) {
             while (true) {
                 final var clientSocket = serverSocket.accept();
-                threadPool.execute(() -> handleConnection(this.validPaths, clientSocket));
+                threadPool.execute(() -> handleConnection(clientSocket));
             }
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            threadPool.shutdown();
         }
     }
 
-    private synchronized void handleConnection(List<String> validPaths, Socket clientSocket) {
+    private void handleConnection(Socket clientSocket) {
         try (
                 final var in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 final var out = new BufferedOutputStream(clientSocket.getOutputStream());
