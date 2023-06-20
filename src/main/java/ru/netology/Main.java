@@ -31,11 +31,11 @@ public class Main {
                         out.flush();
                         return;
                     }
-
+                    System.out.println(request.getPath());
                     out.write((
                             "HTTP/1.1 200 OK\r\n" +
                                     "Content-Type: " + request.getMimeType() + "\r\n" +
-                                    "Content-Length: " + request.getLenght() + "\r\n" +
+                                    "Content-Length: " + request.getLength() + "\r\n" +
                                     "Connection: close\r\n" +
                                     "\r\n"
                     ).getBytes());
