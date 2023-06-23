@@ -34,12 +34,24 @@ public class Server {
     private void handleConnection(Socket clientSocket) {
         try (
                 final var in = new BufferedInputStream(clientSocket.getInputStream());
-//                final var in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 final var out = new BufferedOutputStream(clientSocket.getOutputStream());
         ) {
             Request request = new Request(in);
+
+            if (request == null) {
+                out.write((
+                        "HTTP/1.1 400 Bad Request\r\n" +
+                                "Content-Length: 0\r\n" +
+                                "Connection: close\r\n" +
+                                "\r\n"
+                ).getBytes());
+                out.flush();
+                return;
+            }
+
             String handlerKey = request.getMethod() + request.getPath();
             Handler handler = handlers.get(handlerKey);
+
             if (handler == null) {
                 out.write((
                         "HTTP/1.1 404 Not Found\r\n" +
@@ -50,8 +62,8 @@ public class Server {
                 out.flush();
                 return;
             }
-                handler.handle(request, out);
-            } catch (IOException | URISyntaxException e) {
+            handler.handle(request, out);
+        } catch (IOException | URISyntaxException e) {
             e.printStackTrace();
         }
     }

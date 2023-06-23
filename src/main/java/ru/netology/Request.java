@@ -1,26 +1,23 @@
 package ru.netology;
 
-import org.apache.hc.client5.http.classic.methods.HttpGet;
+
+import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.net.URIBuilder;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Request {
     private final String method;
     private final String path;
     private final String version;
-    private final Path filePath;
-    private final String mimeType;
-    private final long length;
     private final List<String> headers;
     private final String body;
+    private final List<NameValuePair> queryParams;
+
 
     public Request(BufferedInputStream in) throws IOException, URISyntaxException {
         final var limit = 4096;
@@ -32,11 +29,13 @@ public class Request {
         final var requestLine = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
 
         this.method = requestLine[0];
-        this.path = requestLine[1];
+        final var pathAndQuery = requestLine[1];
+        var path = pathAndQuery;
+        if (pathAndQuery.contains("?")) {
+            path = pathAndQuery.split("/?")[0];
+        }
+        this.path = path;
         this.version = requestLine[2];
-        this.filePath = Path.of(".", "public", path);
-        this.mimeType = Files.probeContentType(filePath);
-        this.length = Files.size(filePath);
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
@@ -60,6 +59,8 @@ public class Request {
             }
         }
         this.body = body;
+
+        this.queryParams = new URIBuilder(pathAndQuery).getQueryParams();
     }
 
     public String getMethod() {
@@ -68,18 +69,6 @@ public class Request {
 
     public String getPath() {
         return path;
-    }
-
-    public Path getFilePath() {
-        return filePath;
-    }
-
-    public String getMimeType() {
-        return mimeType;
-    }
-
-    public long getLength() {
-        return length;
     }
 
     public String getVersion() {
@@ -94,15 +83,15 @@ public class Request {
         return body;
     }
 
-    public void getQueryParam(String name) {
-//        httpGet
-//        URIBuilder builder = new URIBuilder();
-//        HttpGet get = new HttpGet(builder.build());
-//        URI uri = get.getUri();
-//        List<NameValuePair> params = URLEncodedUtils.parse(uri, Charset.defaultCharset());
+    public List<NameValuePair> getQueryParam(String name) {
+        return queryParams
+                .stream()
+                .filter(o -> Objects.equals(o.getName(), name))
+                .collect(Collectors.toList());
     }
 
-    public void getQueryParams() {
+    public List<NameValuePair> getQueryParams() {
+        return queryParams;
     }
 
     private static Optional<String> extractHeader(List<String> headers, String header) {
