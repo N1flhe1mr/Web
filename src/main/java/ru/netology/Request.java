@@ -1,47 +1,66 @@
 package ru.netology;
 
-import java.io.BufferedReader;
+
+import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.net.URIBuilder;
+
+import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
+import java.net.URISyntaxException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Request {
     private final String method;
     private final String path;
     private final String version;
-    private final Path filePath;
-    private final String mimeType;
-    private final long lenght;
-    private final Map<String, String> headers;
+    private final List<String> headers;
     private final String body;
+    private final List<NameValuePair> queryParams;
 
-    public Request(BufferedReader in) throws IOException {
-        var requestLine = in.readLine();
-        final var parts = requestLine.split(" ");
-        this.method = parts[0];
-        this.path = parts[1];
-        this.version = parts[2];
-        this.filePath = Path.of(".", "public", path);
-        this.mimeType = Files.probeContentType(filePath);
-        this.lenght = Files.size(filePath);
 
-        this.headers = new HashMap<>();
-        String line;
-        while (!(line = in.readLine()).isEmpty()) {
-            final var headerParts = line.split(": ");
-            headers.put(headerParts[0], headerParts[1]);
+    public Request(BufferedInputStream in) throws IOException, URISyntaxException {
+        final var limit = 4096;
+        in.mark(limit);
+        final var buffer = new byte[limit];
+        final var read = in.read(buffer);
+        final var requestLineDelimiter = new byte[]{'\r', '\n'};
+        final var requestLineEnd = indexOf(buffer, requestLineDelimiter, 0, read);
+        final var requestLine = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
+
+        this.method = requestLine[0];
+        final var pathAndQuery = requestLine[1];
+        var path = pathAndQuery;
+        if (pathAndQuery.contains("?")) {
+            path = pathAndQuery.split("/?")[0];
         }
+        this.path = path;
+        this.version = requestLine[2];
 
-        final var contentLength = Integer.parseInt(headers.getOrDefault("Content-Length", "0"));
-        if (contentLength > 0) {
-            final var bodyChars = new char[contentLength];
-            in.read(bodyChars);
-            this.body = new String(bodyChars);
-        } else {
-            this.body = null;
+        final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
+        final var headersStart = requestLineEnd + requestLineDelimiter.length;
+        final var headersEnd = indexOf(buffer, headersDelimiter, headersStart, read);
+
+        in.reset();
+        in.skip(headersStart);
+
+        final var headersBytes = in.readNBytes(headersEnd - headersStart);
+        this.headers = Arrays.asList(new String(headersBytes).split("\r\n"));
+
+        String body = null;
+        if (!method.equals("GET")) {
+            in.skip(headersDelimiter.length);
+            final var contentLength = extractHeader(headers, "Content-Length");
+            if (contentLength.isPresent()) {
+                final var length = Integer.parseInt(contentLength.get());
+                final var bodyBytes = in.readNBytes(length);
+
+                body = new String(bodyBytes);
+            }
         }
+        this.body = body;
+
+        this.queryParams = new URIBuilder(pathAndQuery).getQueryParams();
     }
 
     public String getMethod() {
@@ -52,27 +71,47 @@ public class Request {
         return path;
     }
 
-    public Path getFilePath() {
-        return filePath;
-    }
-
-    public String getMimeType() {
-        return mimeType;
-    }
-
-    public long getLenght() {
-        return lenght;
-    }
-
     public String getVersion() {
         return version;
     }
 
-    public Map<String, String> getHeaders() {
+    public List<String> getHeaders() {
         return headers;
     }
 
     public String getBody() {
         return body;
+    }
+
+    public List<NameValuePair> getQueryParam(String name) {
+        return queryParams
+                .stream()
+                .filter(o -> Objects.equals(o.getName(), name))
+                .collect(Collectors.toList());
+    }
+
+    public List<NameValuePair> getQueryParams() {
+        return queryParams;
+    }
+
+    private static Optional<String> extractHeader(List<String> headers, String header) {
+        return headers.stream()
+                .filter(o -> o.startsWith(header))
+                .map(o -> o.substring(o.indexOf(" ")))
+                .map(String::trim)
+                .findFirst();
+    }
+
+    private static int indexOf(byte[] array, byte[] target, int start, int max) {
+        outer:
+        for (int i = start; i < max - target.length + 1; i++) {
+            for (int j = 0; j < target.length; j++) {
+                if (array[i + j] != target[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
     }
 }
